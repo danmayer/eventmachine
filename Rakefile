@@ -258,13 +258,40 @@ end
 
 namespace :osx do
   desc "Build OSX binary gem"
-  task :gem do
+  task :gem => [:build_openssl] do
     Spec.platform = RUBY_PLATFORM.sub(/darwin.+$/, 'darwin')
     Spec.files += %w[ lib/rubyeventmachine.bundle lib/fastfilereaderext.bundle ]
     Spec.extensions = nil
 
     Rake::Task['build'].invoke
     Rake::Task['gem'].invoke
+  end
+
+ task :build_openssl do
+    mkdir_p 'build'
+    chdir 'build' do
+      unless File.exists?('openssl-0.9.8j')
+        sh 'curl http://www.openssl.org/source/openssl-0.9.8j.tar.gz > openssl.tar.gz'
+        sh 'tar zxvf openssl.tar.gz' rescue nil # fails because of symlinks
+      end
+
+      mkdir_p 'local'
+      chdir 'openssl-0.9.8j' do
+        #don't use relative path make install errors with all the ../../ path issues
+        local_dir = File.expand_path(File.join(File.dirname(__FILE__),'build','local'))
+        sh "./config --prefix=#{local_dir}"
+        sh 'make'
+        sh 'make install'
+      end
+
+      chdir '../ext' do
+        sh 'git clean -fd .'
+      end
+
+      mv 'local/include/openssl', '../ext/'
+      mv 'local/lib/libssl.a', '../ext/'
+      mv 'local/lib/libcrypto.a', '../ext/'
+    end
   end
 end
 
